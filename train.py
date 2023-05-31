@@ -34,11 +34,11 @@ from torchmetrics import (
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 
 # pytorch-lightning
-from pytorch_lightning.plugins import DDPPlugin
+# from pytorch_lightning.plugins import DDPPlugin
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import TQDMProgressBar, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.utilities.distributed import all_gather_ddp_if_available
+# from pytorch_lightning.utilities.distributed import all_gather_ddp_if_available
 
 from utils import slim_ckpt, load_ckpt
 
@@ -127,6 +127,8 @@ class NeRFSystem(LightningModule):
                 [t.replace('_', ' ') for t in hparams.clipnerf_filter_text])
             print([t.replace('_', ' ') for t in hparams.clipnerf_filter_text])
             print(self.clip_editor.text_filter_features @ self.clip_editor.text_filter_features.T)
+
+        self.validation_step_outputs = []
 
 
     def calculate_clip_loss(self, results, batch):
@@ -373,21 +375,27 @@ class NeRFSystem(LightningModule):
             imageio.imsave(os.path.join(self.val_dir, f'{idx:03d}.png'), rgb_pred)
             imageio.imsave(os.path.join(self.val_dir, f'{idx:03d}_d.png'), depth)
 
+        self.validation_step_outputs.append(logs)
         return logs
 
-    def validation_epoch_end(self, outputs):
-        psnrs = torch.stack([x['psnr'] for x in outputs])
-        mean_psnr = all_gather_ddp_if_available(psnrs).mean()
+    def on_validation_epoch_end(self):
+        psnrs = torch.stack([x['psnr'] for x in self.validation_step_outputs])
+        # mean_psnr = all_gather_ddp_if_available(psnrs).mean()
+        mean_psnr = self.all_gather(psnrs).mean()
         self.log('test/psnr', mean_psnr, True)
 
-        ssims = torch.stack([x['ssim'] for x in outputs])
-        mean_ssim = all_gather_ddp_if_available(ssims).mean()
+        ssims = torch.stack([x['ssim'] for x in self.validation_step_outputs])
+        # mean_ssim = all_gather_ddp_if_available(ssims).mean()
+        mean_ssim = self.all_gather(ssims).mean()
         self.log('test/ssim', mean_ssim)
 
         if self.hparams.eval_lpips:
-            lpipss = torch.stack([x['lpips'] for x in outputs])
-            mean_lpips = all_gather_ddp_if_available(lpipss).mean()
+            lpipss = torch.stack([x['lpips'] for x in self.validation_step_outputs])
+            # mean_lpips = all_gather_ddp_if_available(lpipss).mean()
+            mean_lpips = self.all_gather(lpipss).mean()
             self.log('test/lpips_vgg', mean_lpips)
+        
+        self.validation_step_outputs.clear()
 
     def get_progress_bar_dict(self):
         # don't show the version number
@@ -422,8 +430,7 @@ if __name__ == '__main__':
                       enable_model_summary=False,
                       accelerator='gpu',
                       devices=hparams.num_gpus,
-                      strategy=DDPPlugin(find_unused_parameters=False)
-                               if hparams.num_gpus>1 else None,
+                      strategy="ddp_find_unused_parameters_true",
                       num_sanity_val_steps=-1 if hparams.val_only else 0,
                       accumulate_grad_batches=hparams.accumulate_grad_batches,
                       # amp_backend="apex",
