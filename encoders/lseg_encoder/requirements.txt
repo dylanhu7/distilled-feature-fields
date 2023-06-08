@@ -1,14 +1,14 @@
 setuptools
-torch
-torchvision
-pytorch-lightning
-opencv-python
-imageio
-ftfy
-regex
-tqdm
+# torch
+# torchvision
+# pytorch-lightning
+# opencv-python
+# imageio
+# ftfy
+# regex
+# tqdm
 #./third_party/CLIP/
-git+https://github.com/openai/CLIP.git
+# git+https://github.com/openai/CLIP.git
 altair
 streamlit
 protobuf

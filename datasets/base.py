@@ -58,7 +58,7 @@ class BaseDataset(Dataset):
                     # TODO
                     raise NotImplementedError
                 elif self.ray_sampling_strategy == 'same_image':
-                    feature_map = self.features[img_idxs][None].float()  # chw->1chw
+                    feature_map = torch.tensor(self.features[img_idxs][None]).float()  # chw->1chw
                     u = (pix_idxs % self.img_wh[0] / self.img_wh[0]) * 2 - 1
                     v = (pix_idxs // self.img_wh[0] / self.img_wh[1]) * 2 - 1
                     with torch.no_grad():
