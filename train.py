@@ -324,6 +324,9 @@ class NeRFSystem(LightningModule):
         rgb_gt = batch['rgb']
         with torch.no_grad():
             results = self(batch, split='test')
+        print(results['feature'].shape)
+        # save feature to disk
+        torch.save(results['feature'], f"{self.val_dir}/{batch['img_idxs']}_f.pt")
 
         logs = {}
         # compute each metric per image
